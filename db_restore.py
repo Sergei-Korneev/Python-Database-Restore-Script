@@ -7,7 +7,8 @@ from getpass import getpass
 os_type = platform.system()
 SRV_IP="127.0.0.1"
 WIN_SRV_TOSTOP=["1C:Enterprise 8.3 Server Agent (x86-64)"]
-WIN_PG_BIN="C:\\Program Files\\PostgreSQL\\12.5-3.1C\\bin\\"
+WIN_PG_BIN="C:\\Program Files\\PostgreSQL\\12.5-3.1C\\bin\\psql.exe"
+WIN_PG_BIN_RES="C:\\Program Files\\PostgreSQL\\12.5-3.1C\\bin\\pg_restore.exe"
 LIN_PG_BIN="//usr//bin"
 
 def SrvStart():
@@ -24,7 +25,10 @@ def SrvStart():
          print("")
 
 def SrvStop():
-    
+    print("Stop services [y/n?]")
+    if input() != "y":
+         return 0
+         
     if (os_type == "Windows"):
         for srv in WIN_SRV_TOSTOP:
             print("Trying to stop service: " + srv)
@@ -90,14 +94,14 @@ def PostgreSQLRes(db_file=""):
           "\nServer " + creds[0] + \
           "\nPort " + creds[4] + \
           "\nUser "+creds[2] + \
-          "\nPassword *****\nProceed?")
+          "\nPassword *****\nProceed?[y/n]")
     if input() == "y":
      
   
 
      sqlcmddrop = "DROP DATABASE " + creds[1] + ";"
      
-     sqlcmdres = "CREATE DATABASE " + creds[1] + " \
+     sqlcmdcreate = "CREATE DATABASE " + creds[1] + " \
           ENCODING 'UTF-8' \
           LC_COLLATE 'Russian_Russia.1251' \
           LC_CTYPE 'Russian_Russia.1251';"
@@ -107,11 +111,31 @@ def PostgreSQLRes(db_file=""):
          if (os_type == "Windows"):
              
              # Drop old db
-             subprocess.call([WIN_PG_BIN+"psql", "-d", "postgresql://" + creds[2] + ":" + creds[3] + "@" + creds[0] + ":" + creds[4] +  "/" + creds[1], "-c", sqlcmddrop ])
-             
+             print("Dropping old database...")
+             childp = subprocess.call([WIN_PG_BIN, "-d", "postgresql://" + creds[2] + ":" + creds[3] + "@" + creds[0] + ":" + creds[4], "-c", sqlcmddrop ])
+             print(childp)
+             if childp != 0:
+                   print("Unable to drop the database, continue [y/n?]")
+                   if input() != "y":
+                     sys.exit()
+
              # And create new one
-             subprocess.call([WIN_PG_BIN+"psql", "-d", "postgresql://" + creds[2] + ":" + creds[3] + "@" + creds[0] + ":" + creds[4] +  "/" + creds[1], "-c", sqlcmdres ])
-             
+             print("Creating the database...")
+             childp = subprocess.call([WIN_PG_BIN, "-d", "postgresql://" + creds[2] + ":" + creds[3] + "@" + creds[0] + ":" + creds[4], "-c", sqlcmdcreate ])
+             print(childp)
+             if childp != 0:
+                   print("Unable to create the database, continue [y/n?]")
+                   if input() != "y":
+                     sys.exit()
+
+             #Restore from the file
+             print("Restoring the database...")
+             #pg_restore -h "$ip_addr"  -p 5432  -d "$db_name"   -Fc  -U "$db_user" "$1" 
+             childp = subprocess.call([WIN_PG_BIN_RES, "-d", "postgresql://" + creds[2] + ":" + creds[3] + "@" + creds[0] + ":" + creds[4]+"/"+creds[1], "-Fc",db_file ])
+             print(childp)
+             if childp != 0:
+                   print("Unable to restore the database, exiting...")
+                   sys.exit()
      except FileNotFoundError:
       print('Cannot run postgres binaries.')
       sys.exit(-1)
